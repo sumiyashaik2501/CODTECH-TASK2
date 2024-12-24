@@ -1,0 +1,265 @@
+import java.io.*;
+import java.util.*;
+
+class LibraryManagementSystem {
+    private static final String FILE_NAME = "library_data.ser";
+    private List<LibraryItem> items;
+    private List<User> users;
+
+    public LibraryManagementSystem() {
+        items = new ArrayList<>();
+        users = new ArrayList<>();
+        loadLibraryData();
+    }
+
+    public void addItem(LibraryItem item) {
+        items.add(item);
+        saveLibraryData();
+        System.out.println(item.getTitle() + " has been added.");
+    }
+
+    public void checkoutItem(String title, String userId) {
+        for (LibraryItem item : items) {
+            if (item.getTitle().equalsIgnoreCase(title) && item.isAvailable()) {
+                item.checkout(userId);
+                saveLibraryData();
+                System.out.println("Checked out: " + title);
+                return;
+            }
+        }
+        System.out.println("Item not available or doesn't exist.");
+    }
+
+    public void returnItem(String title) {
+        for (LibraryItem item : items) {
+            if (item.getTitle().equalsIgnoreCase(title) && !item.isAvailable()) {
+                item.returnItem();
+                saveLibraryData();
+                System.out.println("Returned: " + title);
+                return;
+            }
+        }
+        System.out.println("Item not found or not checked out.");
+    }
+
+    public void manageOverdueFines(String userId) {
+        for (User user : users) {
+            if (user.getId().equals(userId)) {
+                double fine = user.calculateFines();
+                System.out.println("Total fines for user " + userId + ": " + fine);
+                return;
+            }
+        }
+        System.out.println("User not found.");
+    }
+
+    public void searchItems(String keyword) {
+        System.out.println("Search Results for: " + keyword);
+        for (LibraryItem item : items) {
+            if (item.matches(keyword)) {
+                System.out.println(item);
+            }
+        }
+    }
+
+    private void saveLibraryData() {
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(FILE_NAME))) {
+            out.writeObject(items);
+            out.writeObject(users);
+        } catch (IOException e) {
+            System.out.println("Error saving library data.");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void loadLibraryData() {
+        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(FILE_NAME))) {
+            items = (List<LibraryItem>) in.readObject();
+            users = (List<User>) in.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("No previous library data found.");
+        }
+    }
+
+    public static void main(String[] args) {
+        LibraryManagementSystem library = new LibraryManagementSystem();
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            System.out.println("\nLibrary Management System");
+            System.out.println("1. Add Item");
+            System.out.println("2. Checkout Item");
+            System.out.println("3. Return Item");
+            System.out.println("4. Manage Overdue Fines");
+            System.out.println("5. Search Items");
+            System.out.println("6. Exit");
+            System.out.print("Select an option: ");
+
+            int choice = scanner.nextInt();
+            scanner.nextLine(); // consume newline
+
+            switch (choice) {
+                case 1:
+                    System.out.print("Enter item type (Book/Magazine/DVD): ");
+                    String type = scanner.nextLine();
+                    System.out.print("Enter title: ");
+                    String title = scanner.nextLine();
+                    System.out.print("Enter author/creator: ");
+                    String author = scanner.nextLine();
+
+                    if (type.equalsIgnoreCase("Book")) {
+                        library.addItem(new Book(title, author));
+                    } else if (type.equalsIgnoreCase("Magazine")) {
+                        library.addItem(new Magazine(title, author));
+                    } else if (type.equalsIgnoreCase("DVD")) {
+                        library.addItem(new DVD(title, author));
+                    } else {
+                        System.out.println("Invalid item type.");
+                    }
+                    break;
+
+                case 2:
+                    System.out.print("Enter title to checkout: ");
+                    String checkoutTitle = scanner.nextLine();
+                    System.out.print("Enter your user ID: ");
+                    String userId = scanner.nextLine();
+                    library.checkoutItem(checkoutTitle, userId);
+                    break;
+
+                case 3:
+                    System.out.print("Enter title to return: ");
+                    String returnTitle = scanner.nextLine();
+                    library.returnItem(returnTitle);
+                    break;
+
+                case 4:
+                    System.out.print("Enter user ID to manage fines: ");
+                    String fineUserId = scanner.nextLine();
+                    library.manageOverdueFines(fineUserId);
+                    break;
+
+                case 5:
+                    System.out.print("Enter keyword to search: ");
+                    String keyword = scanner.nextLine();
+                    library.searchItems(keyword);
+                    break;
+
+                case 6:
+                    System.out.println("Exiting the system. Goodbye!");
+                    scanner.close();
+                    return;
+
+                default:
+                    System.out.println("Invalid option.");
+            }
+        }
+    }
+}
+
+abstract class LibraryItem implements Serializable {
+    private String title;
+    private String author;
+    private boolean available;
+    private String borrowedBy;
+    private Date checkoutDate;
+
+    public LibraryItem(String title, String author) {
+        this.title = title;
+        this.author = author;
+        this.available = true;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public boolean isAvailable() {
+        return available;
+    }
+
+    public void checkout(String userId) {
+        this.available = false;
+        this.borrowedBy = userId;
+        this.checkoutDate = new Date();
+    }
+
+    public void returnItem() {
+        this.available = true;
+        this.borrowedBy = null;
+        this.checkoutDate = null;
+    }
+
+    public boolean matches(String keyword) {
+        return title.toLowerCase().contains(keyword.toLowerCase()) ||
+               author.toLowerCase().contains(keyword.toLowerCase());
+    }
+
+    public long calculateOverdueDays() {
+        if (checkoutDate == null || available) {
+            return 0;
+        }
+        long diff = new Date().getTime() - checkoutDate.getTime();
+        return diff / (1000 * 60 * 60 * 24);
+    }
+
+    @Override
+    public String toString() {
+        return "Title: " + title + ", Author: " + author + ", Available: " + available;
+    }
+}
+
+class Book extends LibraryItem {
+    public Book(String title, String author) {
+        super(title, author);
+    }
+}
+
+class Magazine extends LibraryItem {
+    public Magazine(String title, String author) {
+        super(title, author);
+    }
+}
+
+class DVD extends LibraryItem {
+    public DVD(String title, String author) {
+        super(title, author);
+    }
+}
+
+class User implements Serializable {
+    private String id;
+    private String name;
+    private List<String> borrowedItems;
+
+    public User(String id, String name) {
+        this.id = id;
+        this.name = name;
+        this.borrowedItems = new ArrayList<>();
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void borrowItem(String itemId) {
+        borrowedItems.add(itemId);
+    }
+
+    public void returnItem(String itemId) {
+        borrowedItems.remove(itemId);
+    }
+
+    public double calculateFines() {
+        double totalFines = 0;
+        for (String itemId : borrowedItems) {
+            // Example fine calculation logic (e.g., $1 per overdue day)
+            // Implementation can be expanded based on actual system requirements
+            totalFines += 1; // Placeholder fine calculation
+        }
+        return totalFines;
+    }
+}
